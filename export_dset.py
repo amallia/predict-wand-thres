@@ -44,7 +44,7 @@ def get_reject(mean, std, threshold):
     decisions = std < threshold
     # little hack: cast bools into 0 and 1
     return mean * decisions
-                 
+
 
 def get_asymmetric(mean, std, quantile):
     """
@@ -95,7 +95,7 @@ def save_test_preds(predictions, ids, term_ids, filename, test_gross, test_thres
         for query in to_dump:
             f.write(str(query[0]) + "\t" + str(query[1]) + '\n')
 
-            
+
 def time_pred(model, query):
     mean, std = model.predict(query, return_std=True)
     dist = stats.norm(mean, std)
@@ -134,7 +134,7 @@ def print_metrics(predictions, test_thres, QS):
         up = []
         for l, n in zip(under, under_test):
                 if n >0:
-                        up.append(l/n)	
+                        up.append(l/n)
         mup = np.mean(up)
         mups.append(mup)
         overs.append(over)
@@ -179,88 +179,41 @@ if __name__ == "__main__":
         scaler = pp.StandardScaler(queries.shape[1])
         scaler.fit(queries)
         queries = scaler.transform(queries)
-        
+
         if args.k == 10:
             thres = thres10
         elif args.k == 100:
             thres = thres100
         elif args.k == 1000:
             thres = thres1000
-        
-        model = train_model(queries, thres)
-        print("finish model")
-        joblib.dump(model, args.model)
-        joblib.dump(scaler, args.model + '.scaler')
-    else:
-        model = joblib.load(args.model)
-        scaler = joblib.load(args.model + '.scaler')
 
-    test_queries, test_thres10, test_thres100, test_thres1000, test_ids, test_term_ids, test_gross  = read_queries_and_thres(test_file, data_size=20000)
+        test_queries, test_thres10, test_thres100, test_thres1000, test_ids, test_term_ids, test_gross  = read_queries_and_thres(test_file, data_size=20000)
+        # # Standardize
+        test_queries = scaler.transform(test_queries)
 
-    # Standardize
-    test_queries = scaler.transform(test_queries)
-    print(test_queries.shape)
-    #import sys; sys.exit(0)
-    test_gross = np.array(test_gross)
-    test_gross_10 = test_gross[:, 0]
-    test_gross_100 = test_gross[:, 1]
-    test_gross_1000 = test_gross[:, 2]
-    predictions = get_preds(model, test_queries)
-    mean_preds, std_preds = predictions
-    #mean_preds = np.exp(mean_preds)
+        if args.k == 10:
+            test_thres = test_thres10
+        elif args.k == 100:
+            test_thres = test_thres100
+        elif args.k == 1000:
+            test_thres = test_thres1000
 
-    print(MAE(mean_preds, test_thres10))
-    print(MAE(mean_preds, test_thres100))
-    print(MAE(mean_preds, test_thres1000))
-    print(np.sqrt(MSE(mean_preds, test_thres10)))
-    print(np.sqrt(MSE(mean_preds, test_thres100)))
-    print(np.sqrt(MSE(mean_preds, test_thres1000)))
-    print(pearsonr(mean_preds, test_thres10))
-    print(pearsonr(mean_preds, test_thres100))
-    print(pearsonr(mean_preds, test_thres1000))
+        np.savetxt("x_train.csv", queries, fmt='%f', delimiter=",")
+        np.savetxt("y_train.csv", thres, fmt='%f', delimiter=",")
+        np.savetxt("x_test.csv", test_queries, fmt='%f', delimiter=",")
+        np.savetxt("y_test.csv", test_thres, fmt='%f', delimiter=",")
 
-    print('*' * 80)
-    print("GROSS PREDICTORS")
-    print('*' * 80)
-    print(MAE(test_gross_10, test_thres10))
-    print(MAE(test_gross_100, test_thres100))
-    print(MAE(test_gross_1000, test_thres1000))
-    print(np.sqrt(MSE(test_gross_10, test_thres10)))
-    print(np.sqrt(MSE(test_gross_100, test_thres100)))
-    print(np.sqrt(MSE(test_gross_1000, test_thres1000)))
-    print(pearsonr(test_gross_10, test_thres10))
-    print(pearsonr(test_gross_100, test_thres100))
-    print(pearsonr(test_gross_1000, test_thres1000))
-    print(get_mup(test_gross_10, test_thres10))
-    print(get_mup(test_gross_100, test_thres100))
-    print(get_mup(test_gross_1000, test_thres1000))
-    
-    print('*' * 80)
-    print("MUP and over")
-    print('*' * 80)
-    QS = [0.5, 0.3, 0.1, 0.05, 0.01]
-    if args.k == 10:
-        test_thres = test_thres10
-    elif args.k == 100:
-        test_thres = test_thres100
-    elif args.k == 1000:
-        test_thres = test_thres1000
-    print(predictions[0][:10])
-    print(predictions[1][:10])
-    print(test_thres[:10])
-    print(print_metrics(predictions, test_thres, QS))
-    
-    
-    REP = 1000
-    toy_query = test_queries[0].reshape(1, -1)
-    time = timeit.timeit("time_pred(model, toy_query)", number=REP, setup="from __main__ import time_pred,model,toy_query")
-    print("%.5f microsec per query" % ((time/REP) * 1000 * 1000))
-    
-    dist = time_pred(model, toy_query)
-    time = timeit.timeit("time_quantile(dist, 0.5)", number=REP, setup="from __main__ import time_quantile,dist")
-    print("%.5f microsec per quantile" % ((time/REP) * 1000 * 1000))
+    #     model = train_model(queries, thres)
+    #     print("finish model")
+    #     joblib.dump(model, args.model)
+    #     joblib.dump(scaler, args.model + '.scaler')
+    # else:
+    #     model = joblib.load(args.model)
+    #     scaler = joblib.load(args.model + '.scaler')
 
-    if args.test is not None:
-        filename = args.test + '.k%d' % args.k
-        save_test_preds(predictions, test_ids, test_term_ids, filename, test_gross_10, test_thres10)
-   # import ipdb; ipdb.set_trace()
+
+
+    # # Standardize
+    # test_queries = scaler.transform(test_queries)
+    # print(test_queries.shape)
+
